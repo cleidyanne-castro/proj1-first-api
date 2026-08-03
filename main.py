@@ -1,11 +1,19 @@
-from typing import Optional
-
+from contextlib import asynccontextmanager
+from database import initialize_database
 from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
 
-app = FastAPI(title="Task CRUD API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    initialize_database()
+    yield
 
+
+app = FastAPI(
+    title="Task CRUD API",
+    lifespan=lifespan,
+)
 
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1)
