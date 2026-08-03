@@ -40,6 +40,34 @@ def home():
 def health():
     return {"status": "ok"}
 
+@app.get("/tasks", response_model=list[Task])
+def get_tasks():
+    connection = get_connection()
+
+    try:
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT id, title, done
+            FROM tasks
+            ORDER BY id
+            """
+        )
+
+        rows = cursor.fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "done": bool(row["done"]),
+            }
+            for row in rows
+        ]
+
+    finally:
+        connection.close()
 
 @app.get("/tasks/{task_id}", response_model=Task)
 def get_task(task_id: int):
@@ -75,16 +103,7 @@ def get_task(task_id: int):
         connection.close()
 
 
-@app.get("/tasks/{task_id}", response_model=Task)
-def get_task(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            return task
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Task not found",
-    )
 
 
 @app.post(
