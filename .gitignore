@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 .DS_Storemain_backup.py
+main_backup.py
+tasks.db
+tasks.db-shm
+tasks.db-wal
