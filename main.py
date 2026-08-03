@@ -95,16 +95,42 @@ def get_task(task_id: int):
     status_code=status.HTTP_201_CREATED,
 )
 def create_task(task_data: TaskCreate):
-    next_id = max((task["id"] for task in tasks), default=0) + 1
+    connection = get_connection()
 
-    new_task = {
-        "id": next_id,
-        "title": task_data.title,
-        "done": False,
-    }
+    try:
+        cursor = connection.cursor()
 
-    tasks.append(new_task)
-    return new_task
+        cursor.execute(
+            """
+            INSERT INTO tasks (title, done)
+            VALUES (?, ?)
+            """,
+            (task_data.title, 0),
+        )
+
+        connection.commit()
+
+        new_task_id = cursor.lastrowid
+
+        cursor.execute(
+            """
+            SELECT id, title, done
+            FROM tasks
+            WHERE id = ?
+            """,
+            (new_task_id,),
+        )
+
+        row = cursor.fetchone()
+
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "done": bool(row["done"]),
+        }
+
+    finally:
+        connection.close()
 
 
 @app.put("/tasks/{task_id}", response_model=Task)
