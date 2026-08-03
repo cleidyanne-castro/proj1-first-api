@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from database import initialize_database
+from database import get_connection, initialize_database
 from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
@@ -49,7 +49,32 @@ def health():
 
 @app.get("/tasks", response_model=list[Task])
 def get_tasks():
-    return tasks
+    connection = get_connection()
+
+    try:
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT id, title, done
+            FROM tasks
+            ORDER BY id
+            """
+        )
+
+        rows = cursor.fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "done": bool(row["done"]),
+            }
+            for row in rows
+        ]
+
+    finally:
+        connection.close()
 
 
 @app.get("/tasks/{task_id}", response_model=Task)
