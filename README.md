@@ -1,74 +1,26 @@
-# First API Endpoint
+# Task CRUD API with FastAPI and SQLite
 
-This is my first backend API built with Python and FastAPI.
+This project started as my first FastAPI backend with two basic endpoints: a home route and a health check.
 
-## Endpoints
+It was then expanded into a complete CRUD API for tasks and migrated from in-memory storage to a persistent SQLite database. The API endpoints remain consistent while the storage layer now saves data in `tasks.db`, allowing tasks to survive server restarts.
 
-### Home
+## Project evolution
 
-```http
-GET /
-```
+### Assignment 1
 
-Response:
+The first version included:
 
-```json
-{
-  "message": "My first backend API is running!"
-}
-```
+- `GET /`
+- `GET /health`
 
-### Health Check
+### Assignment 2
 
-```http
-GET /health
-```
+The project was expanded with:
 
-Response:
+- `GET /tasks`
+- `GET /tasks/{task_id}`
+- `POST /tasks`
+- `PUT /tasks/{task_id}`
+- `DELETE /tasks/{task_id}`
 
-```json
-{
-  "status": "ok"
-}
-```
-
-## How to Run
-
-Create and activate a virtual environment:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-Install the dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Start the server:
-
-```bash
-uvicorn main:app --reload
-```
-
-Open the API in the browser:
-
-```text
-http://127.0.0.1:8000/
-http://127.0.0.1:8000/health
-```
-
-Test with curl:
-
-```bash
-curl http://127.0.0.1:8000/
-curl http://127.0.0.1:8000/health
-```
-
-## Technologies
-
-* Python
-* FastAPI
-* Uvicorn
+Task storage was migrated from a Python list in memory to SQLite.
