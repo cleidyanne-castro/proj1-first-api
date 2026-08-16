@@ -1,10 +1,13 @@
 .venv/
 __pycache__/
 *.pyc
-.DS_Storemain_backup.py
+.DS_Store
+
+.env
+
 main_backup.py
+
 tasks.db
 tasks.db-shm
 tasks.db-wal
-.DS_Store
 *.sqbpro
