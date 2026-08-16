@@ -97,6 +97,22 @@ def login(auth_data: AuthRequest):
         "token_type": "bearer",
     }
 
+@app.get("/public/info")
+def public_info():
+    return {"message": "Welcome stranger! This info is public."}
+
+
+@app.get("/protected/profile")
+def protected_profile(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    user = get_current_user(credentials)
+
+    return {
+        "id": user.id,
+        "email": user.email,
+        "created_at": str(user.created_at),
+    }
 
 @app.get("/tasks", response_model=list[Task])
 def list_tasks():
