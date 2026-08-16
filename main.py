@@ -114,6 +114,27 @@ def protected_profile(
         "created_at": str(user.created_at),
     }
 
+@app.get("/protected/dashboard")
+def protected_dashboard(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    user = get_current_user(credentials)
+
+    return {
+        "message": "Welcome to your protected dashboard.",
+        "user_id": user.id,
+        "email": user.email,
+    }
+
+
+@app.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    get_current_user(credentials)
+    logout_user()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 @app.get("/tasks", response_model=list[Task])
 def list_tasks():
     return db_get_tasks()
