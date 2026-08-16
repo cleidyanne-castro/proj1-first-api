@@ -1,22 +1,21 @@
 from contextlib import asynccontextmanager
-from database import get_connection, initialize_database
+
 from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    initialize_database()
-    yield
-
-
-app = FastAPI(
-    title="Task CRUD API",
-    lifespan=lifespan,
+from database import (
+    init_db,
+    get_tasks as db_get_tasks,
+    get_task as db_get_task,
+    create_task as db_create_task,
+    update_task as db_update_task,
+    delete_task as db_delete_task,
 )
+
 
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1)
+    done: bool = False
 
 
 class TaskUpdate(BaseModel):
@@ -30,6 +29,17 @@ class Task(BaseModel):
     done: bool
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(
+    title="Task CRUD API",
+    lifespan=lifespan,
+)
+
 
 @app.get("/")
 def home():
@@ -40,70 +50,23 @@ def home():
 def health():
     return {"status": "ok"}
 
+
 @app.get("/tasks", response_model=list[Task])
-def get_tasks():
-    connection = get_connection()
+def list_tasks():
+    return db_get_tasks()
 
-    try:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT id, title, done
-            FROM tasks
-            ORDER BY id
-            """
-        )
-
-        rows = cursor.fetchall()
-
-        return [
-            {
-                "id": row["id"],
-                "title": row["title"],
-                "done": bool(row["done"]),
-            }
-            for row in rows
-        ]
-
-    finally:
-        connection.close()
 
 @app.get("/tasks/{task_id}", response_model=Task)
-def get_task(task_id: int):
-    connection = get_connection()
+def read_task(task_id: int):
+    task = db_get_task(task_id)
 
-    try:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT id, title, done
-            FROM tasks
-            WHERE id = ?
-            """,
-            (task_id,),
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "Task not found"},
         )
 
-        row = cursor.fetchone()
-
-        if row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found",
-            )
-
-        return {
-            "id": row["id"],
-            "title": row["title"],
-            "done": bool(row["done"]),
-        }
-
-    finally:
-        connection.close()
-
-
-
+    return task
 
 
 @app.post(
@@ -111,143 +74,34 @@ def get_task(task_id: int):
     response_model=Task,
     status_code=status.HTTP_201_CREATED,
 )
-def create_task(task_data: TaskCreate):
-    connection = get_connection()
-
-    try:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            INSERT INTO tasks (title, done)
-            VALUES (?, ?)
-            """,
-            (task_data.title, 0),
-        )
-
-        connection.commit()
-
-        new_task_id = cursor.lastrowid
-
-        cursor.execute(
-            """
-            SELECT id, title, done
-            FROM tasks
-            WHERE id = ?
-            """,
-            (new_task_id,),
-        )
-
-        row = cursor.fetchone()
-
-        return {
-            "id": row["id"],
-            "title": row["title"],
-            "done": bool(row["done"]),
-        }
-
-    finally:
-        connection.close()
+def add_task(task_data: TaskCreate):
+    return db_create_task(task_data.title.strip(), task_data.done)
 
 
 @app.put("/tasks/{task_id}", response_model=Task)
-def update_task(task_id: int, task_data: TaskUpdate):
-    connection = get_connection()
+def edit_task(task_id: int, task_data: TaskUpdate):
+    updated_task = db_update_task(task_id, task_data.title.strip(), task_data.done)
 
-    try:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT id
-            FROM tasks
-            WHERE id = ?
-            """,
-            (task_id,),
+    if updated_task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "Task not found"},
         )
 
-        existing_task = cursor.fetchone()
-
-        if existing_task is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found",
-            )
-
-        cursor.execute(
-            """
-            UPDATE tasks
-            SET title = ?, done = ?
-            WHERE id = ?
-            """,
-            (
-                task_data.title,
-                int(task_data.done),
-                task_id,
-            ),
-        )
-
-        connection.commit()
-
-        cursor.execute(
-            """
-            SELECT id, title, done
-            FROM tasks
-            WHERE id = ?
-            """,
-            (task_id,),
-        )
-
-        row = cursor.fetchone()
-
-        return {
-            "id": row["id"],
-            "title": row["title"],
-            "done": bool(row["done"]),
-        }
-
-    finally:
-        connection.close()
+    return updated_task
 
 
 @app.delete(
     "/tasks/{task_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_task(task_id: int):
-    connection = get_connection()
+def remove_task(task_id: int):
+    deleted = db_delete_task(task_id)
 
-    try:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT id
-            FROM tasks
-            WHERE id = ?
-            """,
-            (task_id,),
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "Task not found"},
         )
 
-        existing_task = cursor.fetchone()
-
-        if existing_task is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found",
-            )
-
-        cursor.execute(
-            """
-            DELETE FROM tasks
-            WHERE id = ?
-            """,
-            (task_id,),
-        )
-
-        connection.commit()
-
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    finally:
-        connection.close()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
