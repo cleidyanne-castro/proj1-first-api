@@ -240,3 +240,94 @@ Repository:
 ```text
 https://github.com/cleidyanne-castro/proj1-first-api
 ```
+
+## Authentication with Supabase
+
+This project uses Supabase Auth as the identity provider for user authentication.
+
+The API supports sign up, login, logout, public routes, and protected routes using Bearer tokens.
+
+### Auth Environment Variables
+
+Create a `.env` file based on `.env.example`:
+
+```env
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_anon_key
+PORT=3000
+DATABASE_URL=postgresql://postgres:dev@localhost:5432/tasks
+```
+
+The real `.env` file is ignored by Git and must not be committed.
+
+### Auth Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|---|
+| POST | `/auth/signup` | Create a user account | No |
+| POST | `/auth/login` | Log in and return access and refresh tokens | No |
+| POST | `/auth/logout` | Log out the current user session | Yes |
+| GET | `/public/info` | Public route available to anyone | No |
+| GET | `/protected/profile` | Return the authenticated user's profile | Yes |
+| GET | `/protected/dashboard` | Example protected dashboard route | Yes |
+
+Protected routes require this header:
+
+```text
+Authorization: Bearer <access_token>
+```
+
+### Signup
+
+```bash
+curl -i -X POST http://localhost:3000/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"your.email@gmail.com","password":"password123"}'
+```
+
+### Login
+
+```bash
+curl -i -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"your.email@gmail.com","password":"password123"}'
+```
+
+### Public Route
+
+```bash
+curl -i http://localhost:3000/public/info
+```
+
+### Protected Profile
+
+```bash
+curl -i http://localhost:3000/protected/profile \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### Protected Dashboard
+
+```bash
+curl -i http://localhost:3000/protected/dashboard \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### Logout
+
+```bash
+curl -i -X POST http://localhost:3000/auth/logout \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### Swagger UI
+
+Swagger UI is available at:
+
+```text
+http://localhost:3000/docs
+```
+
+Click **Authorize**, paste the access token, and run protected routes directly from the browser.
+
+![Swagger auth screenshot](docs/swagger-auth.png)
