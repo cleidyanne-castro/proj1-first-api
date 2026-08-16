@@ -1,54 +1,123 @@
-import sqlite3
-from pathlib import Path
+import os
+from contextlib import contextmanager
 
-DATABASE_PATH = Path(__file__).parent / "tasks.db"
+import psycopg
+from psycopg.rows import dict_row
+from dotenv import load_dotenv
 
-def get_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(DATABASE_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
+load_dotenv()
 
-def initialize_database() -> None:
-    connection = get_connection()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set")
+
+
+@contextmanager
+def get_connection():
+    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
     try:
-        cursor = connection.cursor()
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                done BOOLEAN NOT NULL DEFAULT 0
-            
-            
+        yield conn
+    finally:
+        conn.close()
+
+
+def init_db():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id SERIAL PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    done BOOLEAN NOT NULL DEFAULT FALSE
+                );
+                """
             )
-            """
-        )
 
-        cursor.execute(
-            "SELECT COUNT(*) AS total FROM tasks"
+            cur.execute("SELECT COUNT(*) AS count FROM tasks;")
+            count = cur.fetchone()["count"]
 
-        )
-        result = cursor.fetchone()
+            if count == 0:
+                cur.executemany(
+                    """
+                    INSERT INTO tasks (title, done)
+                    VALUES (%s, %s);
+                    """,
+                    [
+                        ("Learn FastAPI", False),
+                        ("Practice SQLite CRUD", True),
+                        ("Containerize with Postgres", False),
+                    ],
+                )
 
-        if result["total"] == 0:
-            seed_tasks = [
-                ("Learn FastAPI", 0),
-                ("Connect API to SQLite", 0),
-                ("Practice SQL queries", 0),
+        conn.commit()
 
 
-            ]
+def get_tasks():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, title, done FROM tasks ORDER BY id;")
+            return cur.fetchall()
 
-            cursor.executemany(
+
+def get_task(task_id: int):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, title, done FROM tasks WHERE id = %s;",
+                (task_id,),
+            )
+            return cur.fetchone()
+
+
+def create_task(title: str, done: bool = False):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
                 """
                 INSERT INTO tasks (title, done)
-                VALUES (?, ?)
+                VALUES (%s, %s)
+                RETURNING id, title, done;
                 """,
-                seed_tasks,
-
+                (title, done),
             )
+            task = cur.fetchone()
 
-        connection.commit()
-    finally:
-        connection.close()
+        conn.commit()
+        return task
+
+
+def update_task(task_id: int, title: str, done: bool):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE tasks
+                SET title = %s, done = %s
+                WHERE id = %s
+                RETURNING id, title, done;
+                """,
+                (title, done, task_id),
+            )
+            task = cur.fetchone()
+
+        conn.commit()
+        return task
+
+
+def delete_task(task_id: int):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM tasks
+                WHERE id = %s
+                RETURNING id;
+                """,
+                (task_id,),
+            )
+            deleted = cur.fetchone()
+
+        conn.commit()
+        return deleted is not None
