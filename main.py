@@ -1,6 +1,14 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi.security import HTTPAuthorizationCredentials
+from auth import (
+    security,
+    signup_user,
+    login_user,
+    get_current_user,
+    logout_user,
+)
 from pydantic import BaseModel, Field
 
 from database import (
@@ -28,6 +36,10 @@ class Task(BaseModel):
     title: str
     done: bool
 
+class AuthRequest(BaseModel):
+    email: str
+    password: str
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,6 +61,41 @@ def home():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.post("/auth/signup", status_code=status.HTTP_201_CREATED)
+def signup(auth_data: AuthRequest):
+    if not auth_data.email or not auth_data.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "Email and password are required"},
+        )
+
+    response = signup_user(auth_data.email, auth_data.password)
+
+    return {
+        "user": {
+            "id": response.user.id,
+            "email": response.user.email,
+            "created_at": str(response.user.created_at),
+        }
+    }
+
+
+@app.post("/auth/login")
+def login(auth_data: AuthRequest):
+    if not auth_data.email or not auth_data.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "Email and password are required"},
+        )
+
+    response = login_user(auth_data.email, auth_data.password)
+
+    return {
+        "access_token": response.session.access_token,
+        "refresh_token": response.session.refresh_token,
+        "token_type": "bearer",
+    }
 
 
 @app.get("/tasks", response_model=list[Task])
